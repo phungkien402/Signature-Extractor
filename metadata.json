@@ -1,0 +1,5 @@
+{
+  "name": "Signature Scanner & Extractor",
+  "description": "Scan PDF documents to extract signatures, remove backgrounds, and save them as transparent PNGs named after the signee.",
+  "requestFramePermissions": []
+}
