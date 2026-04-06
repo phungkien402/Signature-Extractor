@@ -2,10 +2,10 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 // @ts-ignore
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
-import { Upload, FileText, Download, Loader2, CheckCircle2, X, Trash2, Scissors, ChevronRight, ChevronLeft, Save, Keyboard, Trash, Archive } from 'lucide-react';
+import { Download, Upload, FileText, Loader2, CheckCircle2, X, Trash2, Scissors, ChevronRight, ChevronLeft, Save, Keyboard, Trash, Archive, Settings, Key, Check, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import JSZip from 'jszip';
-import { detectSignatures } from './services/gemini';
+import { detectSignatures, checkApiKey as verifyApiKey } from './services/gemini';
 import { generateUsername, cn } from './lib/utils';
 
 // Set up PDF.js worker
@@ -28,6 +28,29 @@ export default function App() {
   const [rows, setRows] = useState<DetectedRow[]>([]);
   const [reviewIndex, setReviewIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // API Key state
+  const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
+  const [isCheckingApi, setIsCheckingApi] = useState(false);
+  const [apiStatus, setApiStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [showApiConfig, setShowApiConfig] = useState(false);
+
+  const handleCheckApi = async () => {
+    if (!userApiKey) {
+      setApiStatus('error');
+      return;
+    }
+    setIsCheckingApi(true);
+    setApiStatus('idle');
+    const isValid = await verifyApiKey(userApiKey);
+    setIsCheckingApi(false);
+    if (isValid) {
+      setApiStatus('success');
+      localStorage.setItem('gemini_api_key', userApiKey);
+    } else {
+      setApiStatus('error');
+    }
+  };
 
   // Crop state
   const [cropRect, setCropRect] = useState<{ x: number, y: number, w: number, h: number } | null>(null);
@@ -67,7 +90,7 @@ export default function App() {
         await (page.render({ canvasContext: context, viewport } as any)).promise;
         
         const base64Image = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
-        const detections = await detectSignatures(base64Image);
+        const detections = await detectSignatures(base64Image, userApiKey);
         
         for (const detection of detections) {
           const [ymin, xmin, ymax, xmax] = detection.row_bbox;
@@ -164,7 +187,7 @@ export default function App() {
           allRows.push({
             id: Math.random().toString(36).substr(2, 9),
             originalName: detection.name,
-            username: generateUsername(detection.name),
+            username: detection.username || generateUsername(detection.name),
             rowImage: rowCanvas.toDataURL('image/png'),
             processed: false,
             aiCrop: { x: aiCropX, y: aiCropY, w: aiCropW, h: aiCropH }
@@ -487,7 +510,62 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#F8F9FA] text-[#1A1A1A] font-sans p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
-        <header className="mb-8 text-center">
+        <header className="mb-8 text-center relative">
+          <div className="absolute right-0 top-0">
+            <button 
+              onClick={() => setShowApiConfig(!showApiConfig)}
+              className="p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-500"
+              title="Cấu hình API"
+            >
+              <Settings className="w-6 h-6" />
+            </button>
+          </div>
+
+          <AnimatePresence>
+            {showApiConfig && (
+              <motion.div 
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="absolute right-0 top-12 z-50 bg-white p-6 rounded-3xl shadow-2xl border border-gray-100 w-80 text-left"
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <Key className="w-5 h-5 text-blue-600" />
+                  <h3 className="font-bold">Cấu hình Gemini API</h3>
+                </div>
+                <p className="text-xs text-gray-500 mb-4">
+                  Nhập API Key của bạn để sử dụng quota riêng hoặc nếu Key mặc định bị lỗi.
+                </p>
+                <div className="space-y-4">
+                  <div className="relative">
+                    <input 
+                      type="password" 
+                      value={userApiKey}
+                      onChange={(e) => {
+                        setUserApiKey(e.target.value);
+                        setApiStatus('idle');
+                      }}
+                      placeholder="Nhập API Key..."
+                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    {apiStatus === 'success' && <Check className="absolute right-3 top-2.5 w-4 h-4 text-green-500" />}
+                    {apiStatus === 'error' && <AlertCircle className="absolute right-3 top-2.5 w-4 h-4 text-red-500" />}
+                  </div>
+                  <button 
+                    onClick={handleCheckApi}
+                    disabled={isCheckingApi || !userApiKey}
+                    className="w-full py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isCheckingApi ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    Kiểm tra kết nối
+                  </button>
+                  {apiStatus === 'success' && <p className="text-[10px] text-green-600 text-center font-medium">Kết nối thành công! Đã lưu Key.</p>}
+                  {apiStatus === 'error' && <p className="text-[10px] text-red-600 text-center font-medium">Lỗi: Key không hợp lệ hoặc hết hạn.</p>}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-xs font-bold uppercase tracking-wider mb-4">
             <Scissors className="w-3 h-3" />
             Signature Extractor v2

@@ -1,0 +1,17 @@
+{
+  "name": "Signature Extractor Pro",
+  "short_name": "SigExtract",
+  "description": "Công cụ trích xuất chữ ký từ PDF chuyên nghiệp",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F8F9FA",
+  "theme_color": "#2563EB",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/4359/4359905.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
